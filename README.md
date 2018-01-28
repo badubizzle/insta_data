@@ -21,12 +21,16 @@ alias InstaData.Instagram
 ### Get user Instagram profile with ```username```
 sync:
 ```elixir
-Instagram.Users.get("instagram")
+Instagram.User.get("instagram")
 ```
 async:
 
 ```elixir
-Instagram.Users.get("instagram", fn %User{} -> 
+Instagram.User.get("instagram", 
+fn ({_username, %Instagram.User{}=user}) -> 
+  IO.puts("Found user #{inspect(user)}")
+  {_, :error} -> 
+  IO.puts("Error occurred")
 
 end)
 ```
@@ -34,20 +38,29 @@ end)
 ### Get Single Instagram post
 sync:
 ```elixir
-Instagram.Posts.get("BJYkFQPgwGD")
+Instagram.Post.get("BJYkFQPgwGD")
 ```
 async:
 ```elixir
-Instagram.Posts.get("BJYkFQPgwGD", fn %Post{} ->
-
+Instagram.Post.get("BJYkFQPgwGD", fn ({_post_id, %Instagram.Post{}=post}) ->
+  IO.puts("Found post: #{inspect(post)}")
+  ({_post_id, :error}) ->
+  IO.puts("Error occurred")
 end)
 ```
 
 ### Get Instagram User's Posts
 async:
 ```elixir
-Instagram.Posts.get_user_posts("instagram",[per_page: 10, limit: 100], fn (%{posts: posts, total: total}) ->
-  :continue | :stop
+Instagram.Post.get_user_posts("instagram",[per_page: 10, limit: 100], 
+fn ({_username, %{posts: posts, total: total}}) ->
+    IO.puts("Found posts: #{inspect(posts)}")
+    :continue # return :continue to continue or :stop to stop next batch
+   ({_username, :done}) -> 
+    IO.puts("Done")
+    ({_username, :user_not_fount})->
+      IO.put("User not found")
+
 end)
 ```
 

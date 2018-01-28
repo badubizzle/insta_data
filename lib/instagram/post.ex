@@ -63,10 +63,17 @@ defmodule InstaData.Instagram.Post do
 
 
     def terminate(reason, state)do
-        IO.puts("Terminating process #{inspect self} with state: #{inspect state}")
+        IO.puts("Terminating process #{inspect self()} with state: #{inspect state}")
     end
 
    
+    def handle_info({:init, %{username: username, max: max, per_page: per_page}=args}, state)do
+        user = InstaData.Instagram.User.get_user(username)
+        url = "/graphql/query/" #?query_id=17888483320059182&id=#{user_id}&first=#{max}"        
+        q = %Query{url: url, params: [query_id: 17888483320059182, id: user.id, first: per_page]}
+        new_state = %{query: q, user: user, username: username, max: max, per_page: per_page}
+        {:noreply, new_state}
+    end
 
     def handle_info({:next, :get_user_posts}, %{total_posts: total_posts, total_found: total_found, next: after_page, user_id: user_id, username: username, per_page: per_page, max_count: max_count, callback: callback}=state)
     do
@@ -149,7 +156,7 @@ defmodule InstaData.Instagram.Post do
 
                 case callback.({username, %{total: total, posts: posts}}) do
                     :stop -> 
-                        callback.(:done)
+                        callback.({username, :done})
                         #stop_procees(self)
                         {:stop, :normal, state}
                     :continue ->
@@ -158,7 +165,7 @@ defmodule InstaData.Instagram.Post do
                                 if total_fetched < per_page do
                                     # first page result not even enough
                                     #end of result
-                                    callback.(:done)
+                                    callback.({username, :done})
                                     {:noreply, state}
                                 else
                                     new_state = %{user_id: user_id, 
@@ -192,7 +199,7 @@ defmodule InstaData.Instagram.Post do
                                         Process.send_after(self(),{:next, :get_user_posts},1000)
                                         {:noreply, new_state}
                                     _ ->
-                                        callback.(:done)
+                                        callback.({username, :done})
                                         #stop_procees(self)
                                         {:stop, :normal, state}
                                 end
@@ -202,7 +209,7 @@ defmodule InstaData.Instagram.Post do
                 end
             other ->
                 IO.inspect(other)
-                callback.(:user_not_found)
+                callback.({username, :user_not_found})
                 #stop_procees(self)
                 {:stop, :normal, state}
         end                
@@ -228,25 +235,20 @@ defmodule InstaData.Instagram.Post do
         {:noreply, state}
     end
 
-    def handle_cast({:user_posts, username, pid}, state)do
-        data = InstaData.Instagram.Post.get_user_posts(username)
+    # def handle_cast({:user_posts, username, pid}, state)do
+    #     data = InstaData.Instagram.Post.user_posts(username)
+    #     send(pid, {{:user_posts, username}, data})
+    #     {:noreply, state}
+    # end
+
+    def handle_cast({:user_posts, _query, username, pid}, state)do
+        data = InstaData.Instagram.Post.user_posts(username)
         send(pid, {{:user_posts, username}, data})
         {:noreply, state}
     end
 
-    def handle_cast({:user_posts, query, username, pid}, state)do
-        data = InstaData.Instagram.Post.get_user_posts(username)
-        send(pid, {{:user_posts, username}, data})
-        {:noreply, state}
-    end
 
-    def handle_info({:init, %{username: username, max: max, per_page: per_page}=args}, state)do
-        user = InstaData.Instagram.User.get_user(username)
-        url = "/graphql/query/" #?query_id=17888483320059182&id=#{user_id}&first=#{max}"        
-        q = %Query{url: url, params: [query_id: 17888483320059182, id: user.id, first: per_page]}
-        new_state = %{query: q, user: user, username: username, max: max, per_page: per_page}
-        {:noreply, new_state}
-    end
+    
 
     defstruct [
         post_id: nil,
@@ -310,7 +312,7 @@ defmodule InstaData.Instagram.Post do
                 %{"count"=> count}-> count
             end
 
-            post = %__MODULE__{
+            %__MODULE__{
                 post_id: String.to_integer(post_id),
                 user_id: String.to_integer(user_id),
                 username: Map.get(owner, "username"),
