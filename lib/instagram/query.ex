@@ -29,7 +29,7 @@ defmodule InstaData.Instagram.Query do
 
     def run(%__MODULE__{url: url, params: params, page_info: nil}=q)do
         url = url <> "?" <> URI.encode_query(Map.new(filter_params(params)))
-        IO.inspect(url)
+        #IO.inspect(url)
         {:ok, %{body: data}} = InstaData.HTTP.Instagram.get(url, [], [follow_redirect: true])                
         {:ok, data}
     end

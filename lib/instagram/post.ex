@@ -4,27 +4,32 @@ defmodule InstaData.Instagram.Post do
     alias InstaData.Instagram.Query.PageInfo
 
     
+    #-------------------------------
+    # PUBLIC API
+    #-------------------------------
 
-    def init(%{}=args)do  
-        IO.inspect(args)      
-        {:ok, args}       
-    end
-
-    def init(_)do        
-        {:ok, []}       
-    end
-
-    defp cast_message(server, message)do        
-        GenServer.cast(server, message)
-    end
-
-    defp cast_message(message)do
-        {:ok, server} = GenServer.start_link(__MODULE__, [])
-        GenServer.cast(server, message)
-    end
+    defstruct [
+        post_id: nil,
+        post_code: nil,
+        post_type: :image,
+        timestamp: nil,
+        caption: nil,
+        hashtags: [],        
+        total_likes: 0,
+        video_url: nil,
+        picture: nil,
+        total_comments: 0,
+        total_views: 0,
+        user_id: nil,
+        username: nil,                
+        user: %InstaData.Instagram.User{},
+        comments: [],
+        likes: []
+        
+    ]
 
     def get(post_id) when is_binary(post_id) do
-        InstaData.Instagram.Post.get_post(post_id)
+        get_post(post_id)
     end
     
 
@@ -52,13 +57,33 @@ defmodule InstaData.Instagram.Post do
                 
     end 
 
+    #--------------------------------------------------
+    # OTP IMPLEMENTATIONS
+    #--------------------------------------------------
+
+    def init(%{}=args)do  
+        IO.inspect(args)      
+        {:ok, args}       
+    end
+
+    def init(_)do        
+        {:ok, []}       
+    end
+
+    defp cast_message(server, message)do        
+        GenServer.cast(server, message)
+    end
+
+    defp cast_message(message)do
+        {:ok, server} = GenServer.start_link(__MODULE__, [])
+        GenServer.cast(server, message)
+    end    
+
     def start_link(username, max, per_page \\ 10)do
         GenServer.start_link(__MODULE__, [%{username: username, max: max, per_page: per_page}])
     end
 
-    def next(pid)do
-        GenServer.cast(pid, :next)
-    end
+    
 
 
 
@@ -70,7 +95,7 @@ defmodule InstaData.Instagram.Post do
     def handle_info({:init, %{username: username, max: max, per_page: per_page}=args}, state)do
         user = InstaData.Instagram.User.get_user(username)
         url = "/graphql/query/" #?query_id=17888483320059182&id=#{user_id}&first=#{max}"        
-        q = %Query{url: url, params: [query_id: 17888483320059182, id: user.id, first: per_page]}
+        q = Query.query(url, [query_id: 17888483320059182, id: user.id, first: per_page])
         new_state = %{query: q, user: user, username: username, max: max, per_page: per_page}
         {:noreply, new_state}
     end
@@ -219,7 +244,7 @@ defmodule InstaData.Instagram.Post do
 
     def handle_cast({:get_post, post_id, callback}, state)
     when is_binary(post_id) and is_function(callback, 1) do
-        data = InstaData.Instagram.Post.get_post(post_id)
+        data = get_post(post_id)
         callback.({post_id, data})
         {:noreply, state}
     end
@@ -230,7 +255,7 @@ defmodule InstaData.Instagram.Post do
 
     
     def handle_cast({:user_posts, username, pid}, state)do
-        data = InstaData.Instagram.Post.get_user_posts(username)
+        data = user_posts(username)
         send(pid, {{:user_posts, username}, data})
         {:noreply, state}
     end
@@ -242,35 +267,24 @@ defmodule InstaData.Instagram.Post do
     # end
 
     def handle_cast({:user_posts, _query, username, pid}, state)do
-        data = InstaData.Instagram.Post.user_posts(username)
+        data = user_posts(username)
         send(pid, {{:user_posts, username}, data})
         {:noreply, state}
     end
 
 
     
+    #---------------------
+    # INTERNALS
+    # ---------------------
 
-    defstruct [
-        post_id: nil,
-        post_code: nil,
-        post_type: :image,
-        timestamp: nil,
-        caption: nil,
-        hashtags: [],        
-        total_likes: 0,
-        video_url: nil,
-        picture: nil,
-        total_comments: 0,
-        total_views: 0,
-        user_id: nil,
-        username: nil,                
-        user: %InstaData.Instagram.User{},
-        comments: [],
-        likes: []
-        
-    ]
+    defp next(pid)do
+        GenServer.cast(pid, :next)
+    end
 
-    def get_post(post_id)do
+    
+
+    defp get_post(post_id)do
         case InstaData.HTTP.Instagram.get("/p/"<>post_id<>"?__a=1", [], [follow_redirect: true]) do
             {:ok, %{body: body}}->
                 process_post(body[:graphql] |>  Map.get("shortcode_media"))

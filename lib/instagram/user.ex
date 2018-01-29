@@ -1,41 +1,7 @@
 defmodule InstaData.Instagram.User do
     
-    def init(_)do 
-        {:ok, []}       
-    end
 
-    def start_link()do
-        GenServer.start_link(__MODULE__, [])
-    end
-
-    def get(username) when is_binary(username)do
-        user = InstaData.Instagram.User.get_user(username)
-        user
-    end
-
-    def get(username, callback_function) when is_binary(username) and is_function(callback_function) do
-        {:ok, server} = start_link()
-        GenServer.cast(server, {:user, username, callback_function})
-    end
-
-    
-
-    def get_user(username, pid)do
-        {:ok, server} = start_link()
-        GenServer.cast(server, {:user, username, pid})
-    end
-
-    def handle_cast({:user, username, callback}, state) when is_function(callback) do
-        user = InstaData.Instagram.User.get(username)
-        callback.({username, user})
-        {:stop, :normal, state}
-    end
-
-    def handle_cast({:user, username, pid}, state)do
-        user = InstaData.Instagram.User.get_user(username)
-        send(pid, {{:user, username}, user})
-        {:noreply, state}
-    end
+    #PUBLIC API
 
     defstruct [
         id: nil,
@@ -50,12 +16,74 @@ defmodule InstaData.Instagram.User do
         total_posts: 0,
         total_saved_posts: 0,
         url: nil
-
     ]
+
+    @doc """
+    Get Instagram User Profile with given `username`
+    
+    Return {username, %Instagram.User{}} | {username, :error}
+
+    ##Example
+    iex> user = Instagram.User.get("instagram")    
+    """
+    def get(username) when is_binary(username)do
+        user = get_user(username)
+        user
+    end
+
+
+    
+    @doc """
+    Get Instagram User Profile with given `username` and `callback_function/1`
+    callback function that will be called with
+    `{username, %Instagram.User{}} | {username, :error}`    
+    
+    ##Example
+    iex> Instagram.User.get("instagram", 
+    fn({username, %Instagram.User{}=user}) -> 
+        IO.puts("User found: #{inspect(user)}")
+       ({username, :error})->
+        IO.puts("Error occurred")         
+    end)
+    """
+    def get(username, callback_function) when is_binary(username) and is_function(callback_function,1) do
+        {:ok, server} = start_link()
+        GenServer.cast(server, {:user, username, callback_function})
+    end
+
+
+    # OTP IMPLEMENTATIONS
+
+    def init(_)do 
+        {:ok, []}       
+    end
+
+    def start_link()do
+        GenServer.start_link(__MODULE__, [])
+    end
+        
+    def handle_cast({:user, username, callback}, state) when is_function(callback) do
+        user = get_user(username)
+        callback.({username, user})
+        {:stop, :normal, state}
+    end
+
+    def handle_cast({:user, username, pid}, state)do
+        user = get_user(username)
+        send(pid, {{:user, username}, user})
+        {:noreply, state}
+    end
+
 
     @base_url "https://instagram.com"
     
-    def get_user(username)do
+    defp get_user(username, pid)do
+        {:ok, server} = start_link()
+        GenServer.cast(server, {:user, username, pid})
+    end
+
+
+    defp get_user(username)do
         case InstaData.HTTP.Instagram.get("/"<>username<>"?__a=1", [], [follow_redirect: true]) do
             {:ok, %HTTPoison.Response{body: data}} ->
                 process_user(data[:user])
@@ -65,7 +93,7 @@ defmodule InstaData.Instagram.User do
         end
     end
 
-    def process_user(%{"external_url"=>url, "biography"=>bio, "full_name"=>name, 
+    defp process_user(%{"external_url"=>url, "biography"=>bio, "full_name"=>name, 
     "followed_by"=>%{"count"=> followers}, 
     "follows"=> %{"count"=>following}, 
     "is_private"=>is_private, "id"=> user_id, 

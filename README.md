@@ -35,14 +35,16 @@ fn ({_username, %Instagram.User{}=user}) ->
 end)
 ```
 
-### Get Single Instagram post
+### Get Single Instagram post With Post ID
+For a post with url like this https://www.instagram.com/p/BJYkFQPgwGD
 sync:
 ```elixir
 Instagram.Post.get("BJYkFQPgwGD")
 ```
 async:
 ```elixir
-Instagram.Post.get("BJYkFQPgwGD", fn ({_post_id, %Instagram.Post{}=post}) ->
+Instagram.Post.get("BJYkFQPgwGD", 
+fn ({_post_id, %Instagram.Post{}=post}) ->
   IO.puts("Found post: #{inspect(post)}")
   ({_post_id, :error}) ->
   IO.puts("Error occurred")
@@ -68,13 +70,15 @@ end)
 ### Search for posts with Hashtag
 
 ```elixir
-Instagram.Search.hashtag("chalewote", [], fn posts ->
+Instagram.Search.hashtag("chalewote", [], 
+fn posts ->
 
 end)
 ```
 
 ```elixir
-Instagram.Search.search_users("badu", fn users -> 
+Instagram.Search.search_users("badu", 
+fn users -> 
 
 end)
 ```
