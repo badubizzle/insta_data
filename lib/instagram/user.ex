@@ -41,7 +41,7 @@ defmodule InstaData.Instagram.User do
     ##Example
     iex> Instagram.User.get("instagram", 
     fn({username, %Instagram.User{}=user}) -> 
-        IO.puts("User found: #{inspect(user)}")
+        IO.puts("User found: " <> IO.inspect((user))
        ({username, :error})->
         IO.puts("Error occurred")         
     end)

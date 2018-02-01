@@ -30,7 +30,7 @@ defmodule InstaData.Instagram.UserQuery do
     end
 
     def handle_cast({:user, username, pid}, state)do
-        user = InstaData.Instagram.User.get_user(username)
+        user = InstaData.Instagram.User.get(username)
         send(pid, {:user, user})
         {:noreply, state}
     end

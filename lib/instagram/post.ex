@@ -84,16 +84,13 @@ defmodule InstaData.Instagram.Post do
     end
 
     
-
-
-
     def terminate(reason, state)do
         IO.puts("Terminating process #{inspect self()} with state: #{inspect state}")
     end
 
    
     def handle_info({:init, %{username: username, max: max, per_page: per_page}=args}, state)do
-        user = InstaData.Instagram.User.get_user(username)
+        user = InstaData.Instagram.User.get(username)
         url = "/graphql/query/" #?query_id=17888483320059182&id=#{user_id}&first=#{max}"        
         q = Query.query(url, [query_id: 17888483320059182, id: user.id, first: per_page])
         new_state = %{query: q, user: user, username: username, max: max, per_page: per_page}
@@ -255,7 +252,7 @@ defmodule InstaData.Instagram.Post do
 
     
     def handle_cast({:user_posts, username, pid}, state)do
-        data = user_posts(username)
+        data = user_posts(username, -1)
         send(pid, {{:user_posts, username}, data})
         {:noreply, state}
     end
@@ -267,7 +264,7 @@ defmodule InstaData.Instagram.Post do
     # end
 
     def handle_cast({:user_posts, _query, username, pid}, state)do
-        data = user_posts(username)
+        data = user_posts(username, -1)
         send(pid, {{:user_posts, username}, data})
         {:noreply, state}
     end
@@ -372,6 +369,10 @@ defmodule InstaData.Instagram.Post do
     }
     end
 
+    defp user_posts(username, max)do
+        user_posts(username, -1)
+    end
+
     defp user_posts(user_id, max, after_page) when is_integer(user_id) and is_integer(max) do
         url = "/graphql/query/" #?query_id=17888483320059182&id=#{user_id}&first=#{max}"
         
@@ -383,12 +384,14 @@ defmodule InstaData.Instagram.Post do
         url = "/graphql/query/" #?query_id=17888483320059182&id=#{user_id}&first=#{max}"
         q = %Query{url: url, params: [query_id: 17888483320059182, id: user_id, first: max]}
         user_posts_with_query(q)
-    end    
+    end
+    
+    
 
     defp user_posts(username, max)do
-       case InstaData.Instagram.User.get_user(username) do
+       case InstaData.Instagram.User.get(username) do
            %InstaData.Instagram.User{id: user_id}=user->
-                %{total: total, posts: posts, next: q} = get_user_posts(user_id, max)
+                %{total: total, posts: posts, next: q} = user_posts(user_id, max)
                 %{user: user, total: total, posts: posts, next: q}
             _ ->
                 :error
@@ -397,7 +400,7 @@ defmodule InstaData.Instagram.Post do
     end
 
     defp user_posts(username, max, after_page)do
-        case InstaData.Instagram.User.get_user(username) do
+        case InstaData.Instagram.User.get(username) do
             %InstaData.Instagram.User{id: user_id}=user->
                  %{posts: posts, total: total, next: q} = get_user_posts(user_id, max, after_page)
                  %{user: user, total: total, posts: posts, next: q}
@@ -407,4 +410,55 @@ defmodule InstaData.Instagram.Post do
  
      end
 
-end
+
+     #Hastag search
+    def hashtag(tag_name)do
+        search_hashtag(tag_name, 1)
+        |> get_hashtag_posts()
+    end
+
+    def top_hashtag(tag_name)do
+        search_hashtag(tag_name, 20)
+        |> get_top_hashtag_posts()
+    end
+
+    defp get_top_hashtag_posts(data)do
+        posts = 
+        data[:data]["hashtag"]["edge_hashtag_to_top_posts"]["edges"]
+        |> Enum.map(fn p -> 
+            process_post(p["node"])
+        end)
+        #page_info = data[:data]["hashtag"]["edge_hashtag_to_media"]["page_info"]
+        %{total: Enum.count(posts),  
+        posts: posts, next: nil}
+    end
+
+    defp get_hashtag_posts(data)do
+        posts = 
+        data[:data]["hashtag"]["edge_hashtag_to_media"]["edges"]
+        |> Enum.map(fn p -> 
+            process_post(p["node"])
+        end)
+        page_info = data[:data]["hashtag"]["edge_hashtag_to_media"]["page_info"]
+        %{total: data[:data]["hashtag"]["edge_hashtag_to_media"]["count"],  posts: posts, next: case page_info["has_next_page"] do
+            true -> page_info["end_cursor"]
+            _ -> nil
+        end}
+    end
+
+    defp search_hashtag(tag_name, per_page)do
+        search_hashtag(tag_name, per_page, nil)
+    end 
+    defp search_hashtag(tag_name, per_page, after_page)do
+        #graphql/query/?query_id=17882293912014529&tag_name={0}&first=100&after={1}
+        q = Query.query("/graphql/query/", [query_id: "17882293912014529", tag_name: tag_name, first: per_page, after: after_page])
+        {:ok, data} = Query.run(q)
+        data
+    end
+
+    defp search_users(username, per_page, after_page)do
+        
+    end
+
+
+    end
