@@ -15,8 +15,11 @@ def deps do
 end
 ```
 
-##Usage
+## Usage
+
+```elixir
 alias InstaData.Instagram
+```
 
 ### Get user Instagram profile with ```username```
 sync:
